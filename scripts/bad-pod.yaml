@@ -1,0 +1,16 @@
+# Demo artifact: Kyverno will block this pod
+# kubectl apply -f scripts/bad-pod.yaml
+# Expected output: Error from server: admission webhook denied the request:
+#   Containers must run as non-root. Set securityContext.runAsNonRoot=true.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: bad-pod-demo
+  namespace: ledger
+spec:
+  containers:
+    - name: bad-container
+      image: nginx:latest   # Also blocked by restrict-image-registry policy
+      securityContext:
+        runAsUser: 0          # root — Kyverno blocks this
+        runAsNonRoot: false

@@ -1,0 +1,45 @@
+# Deny all ingress/egress by default, then allow only what is needed
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: ledger
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ledger-api-allow
+  namespace: ledger
+spec:
+  podSelector:
+    matchLabels:
+      app: ledger-api
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        # Allow traffic from the ALB (via kube-proxy / node)
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - port: 8080
+    - from:
+        # Allow Prometheus scraping from monitoring namespace
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - port: 8080
+  egress:
+    - ports:
+        - port: 5432   # Aurora PostgreSQL
+        - port: 443    # AWS API endpoints (Secrets Manager, STS via VPC endpoints)
+        - port: 53     # DNS
+          protocol: UDP

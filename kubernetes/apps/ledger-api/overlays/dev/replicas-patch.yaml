@@ -1,0 +1,7 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: ledger-api
+  namespace: ledger
+spec:
+  replicas: 2   # dev: 2 replicas to save cost

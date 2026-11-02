@@ -1,0 +1,26 @@
+# Argo CD "App of Apps" pattern:
+# This single Application tells Argo CD to manage all other Applications.
+# One `kubectl apply -f` is the only manual step after bootstrapping Argo CD.
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: northpay-platform
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/YOUR_USERNAME/northpay-eks-platform
+    targetRevision: main
+    path: kubernetes/platform/apps
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

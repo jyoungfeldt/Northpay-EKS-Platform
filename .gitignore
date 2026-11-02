@@ -1,0 +1,31 @@
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfplan
+.terraform.lock.hcl
+override.tf
+override.tf.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+
+# k6 results
+scripts/load-test-results.json
+
+# Local
+.env
+*.local
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+
+# Local build tracker (never commit)
+TODO.md

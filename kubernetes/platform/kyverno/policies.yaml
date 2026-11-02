@@ -1,0 +1,146 @@
+# Kyverno cluster-wide security policies for NorthPay EKS
+# These demonstrate production security posture for the portfolio.
+
+---
+# Policy 1: Block containers running as root
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-non-root-user
+  annotations:
+    policies.kyverno.io/title: Require Non-Root User
+    policies.kyverno.io/description: >
+      Containers must not run as root (UID 0). This is a fundamental
+      container security control. A container running as root can escape
+      to the host with root privileges if there's a container breakout.
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: check-runasnonroot
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              namespaces: [ledger, payments]
+      validate:
+        message: "Containers must run as non-root. Set securityContext.runAsNonRoot=true."
+        pattern:
+          spec:
+            securityContext:
+              runAsNonRoot: true
+            containers:
+              - securityContext:
+                  runAsNonRoot: true
+
+---
+# Policy 2: Require read-only root filesystem
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-readonly-rootfs
+  annotations:
+    policies.kyverno.io/title: Require Read-Only Root Filesystem
+    policies.kyverno.io/description: >
+      Containers must use a read-only root filesystem. This prevents
+      malicious processes from writing to the container filesystem and
+      reduces the blast radius of a compromise.
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: check-readonly-rootfs
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              namespaces: [ledger, payments]
+      validate:
+        message: "Containers must have readOnlyRootFilesystem=true."
+        pattern:
+          spec:
+            containers:
+              - securityContext:
+                  readOnlyRootFilesystem: true
+
+---
+# Policy 3: Disallow privilege escalation
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-privilege-escalation
+  annotations:
+    policies.kyverno.io/title: Disallow Privilege Escalation
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: check-privilege-escalation
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              namespaces: [ledger, payments]
+      validate:
+        message: "Privilege escalation is not allowed. Set allowPrivilegeEscalation=false."
+        pattern:
+          spec:
+            containers:
+              - securityContext:
+                  allowPrivilegeEscalation: false
+
+---
+# Policy 4: Require resource limits (prevents noisy-neighbour and OOM kills)
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-resource-limits
+  annotations:
+    policies.kyverno.io/title: Require Resource Limits
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: check-resource-limits
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              namespaces: [ledger, payments]
+      validate:
+        message: "Containers must define CPU and memory limits."
+        pattern:
+          spec:
+            containers:
+              - resources:
+                  limits:
+                    cpu: "?*"
+                    memory: "?*"
+
+---
+# Policy 5: Images must come from our ECR (no pulling from Docker Hub)
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: restrict-image-registry
+  annotations:
+    policies.kyverno.io/title: Restrict Image Registry
+    policies.kyverno.io/description: >
+      Images must come from our private ECR registry. This prevents
+      supply-chain attacks via public registries.
+spec:
+  validationFailureAction: Enforce
+  background: true
+  rules:
+    - name: check-image-registry
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              namespaces: [ledger, payments]
+      validate:
+        message: "Images must be pulled from the approved ECR registry."
+        pattern:
+          spec:
+            containers:
+              - image: "*.dkr.ecr.*.amazonaws.com/*"
