@@ -12,7 +12,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/YOUR_USERNAME/northpay-eks-platform
+    repoURL: https://github.com/jyoungfeldt/northpay-eks-platform
     targetRevision: main
     path: kubernetes/platform/apps
   destination:

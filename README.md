@@ -1,11 +1,11 @@
 # NorthPay Payments Platform on EKS
 
-[![CI](https://github.com/YOUR_USERNAME/northpay-eks-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_USERNAME/northpay-eks-platform/actions/workflows/ci.yml)
-[![Terraform](https://github.com/YOUR_USERNAME/northpay-eks-platform/actions/workflows/terraform.yml/badge.svg)](https://github.com/YOUR_USERNAME/northpay-eks-platform/actions/workflows/terraform.yml)
+[![CI](https://github.com/jyoungfeldt/northpay-eks-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/jyoungfeldt/northpay-eks-platform/actions/workflows/ci.yml)
+[![Terraform](https://github.com/jyoungfeldt/northpay-eks-platform/actions/workflows/terraform.yml/badge.svg)](https://github.com/jyoungfeldt/northpay-eks-platform/actions/workflows/terraform.yml)
 
 A production-style Amazon EKS platform running a small payments API, built the way a fintech platform team would build it: GitOps deployments, security policies, autoscaling, and safe canary releases — all on Terraform, all without long-lived credentials.
 
-> **Related project:** [NorthPay CloudOps Agent](https://github.com/YOUR_USERNAME/northpay-cloudops-agent) — an AI agent that monitors this cluster for security findings and cost anomalies.
+> **Related project:** [NorthPay CloudOps Agent](https://github.com/jyoungfeldt/northpay-cloudops-agent) — an AI agent that monitors this cluster for security findings and cost anomalies.
 
 ---
 

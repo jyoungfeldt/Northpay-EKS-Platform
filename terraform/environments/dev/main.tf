@@ -17,7 +17,7 @@ terraform {
   }
 
   backend "s3" {
-    bucket         = "northpay-tfstate-dev"   # create this bucket first
+    bucket         = "northpay-tfstate-595981720885"   # create this bucket first
     key            = "eks-platform/dev/terraform.tfstate"
     region         = "us-east-1"
     encrypt        = true
