@@ -9,7 +9,6 @@ A minimal payments ledger demonstrating production-style FastAPI patterns:
  - Prometheus metrics via prometheus-fastapi-instrumentator
 """
 
-import logging
 import os
 import uuid
 from contextlib import asynccontextmanager
@@ -30,7 +29,6 @@ from sqlalchemy import text
 structlog.configure(
     processors=[
         structlog.stdlib.add_log_level,
-        structlog.stdlib.add_logger_name,
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.processors.JSONRenderer(),
     ]
@@ -99,7 +97,7 @@ async def lifespan(app: FastAPI):
                 currency         CHAR(3)     NOT NULL,
                 idempotency_key  TEXT        NOT NULL UNIQUE,
                 status           TEXT        NOT NULL DEFAULT 'completed',
-                created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                created_at       TEXT        NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
         """))
     logger.info("database.ready")
@@ -177,8 +175,12 @@ async def create_payment(
             )
 
         # Check source balance
+        # FOR UPDATE acquires a row lock in PostgreSQL; SQLite doesn't support it
+        # so we omit it when running under SQLite (tests)
+        is_sqlite = engine.dialect.name == "sqlite"
+        lock_clause = "" if is_sqlite else " FOR UPDATE"
         balance_row = await session.execute(
-            text("SELECT balance FROM accounts WHERE account_id = :id FOR UPDATE"),
+            text(f"SELECT balance FROM accounts WHERE account_id = :id{lock_clause}"),
             {"id": payment.source_account},
         )
         balance = balance_row.fetchone()
@@ -187,16 +189,21 @@ async def create_payment(
 
         payment_id = str(uuid.uuid4())
 
-        async with session.begin():
-            await session.execute(
+        # Use a fresh connection for the write block so it gets its own
+        # transaction. This is compatible with both PostgreSQL and SQLite
+        # (which cannot upgrade a deferred read transaction to a write).
+        await session.close()  # release the read connection back to pool
+
+        async with engine.begin() as conn:
+            await conn.execute(
                 text("UPDATE accounts SET balance = balance - :amt WHERE account_id = :id"),
-                {"amt": payment.amount, "id": payment.source_account},
+                {"amt": float(payment.amount), "id": payment.source_account},
             )
-            await session.execute(
+            await conn.execute(
                 text("UPDATE accounts SET balance = balance + :amt WHERE account_id = :id"),
-                {"amt": payment.amount, "id": payment.destination_account},
+                {"amt": float(payment.amount), "id": payment.destination_account},
             )
-            await session.execute(
+            await conn.execute(
                 text("""
                     INSERT INTO payments
                       (payment_id, source_account, destination_account, amount, currency, idempotency_key)
@@ -206,11 +213,12 @@ async def create_payment(
                     "pid": payment_id,
                     "src": payment.source_account,
                     "dst": payment.destination_account,
-                    "amt": payment.amount,
+                    "amt": float(payment.amount),
                     "cur": payment.currency,
                     "key": payment.idempotency_key,
                 },
             )
+        # engine.begin() auto-commits on exit
 
         log.info("payment.created", payment_id=payment_id, amount=str(payment.amount))
         return PaymentResponse(
