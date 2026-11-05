@@ -19,7 +19,6 @@ resource "aws_iam_role" "alb_controller" {
 
 resource "aws_iam_policy" "alb_controller" {
   name   = "${var.cluster_name}-alb-controller"
-  # Policy document from https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/main/docs/install/iam_policy.json
   policy = file("${path.module}/iam-policy.json")
 }
 
@@ -44,6 +43,11 @@ resource "helm_release" "alb_controller" {
   namespace  = "kube-system"
   version    = "1.10.0"
 
+  # Don't wait for pods to be ready — Karpenter may need to provision a node first,
+  # which can take longer than Helm's default wait timeout.
+  wait    = false
+  timeout = 300
+
   set {
     name  = "clusterName"
     value = var.cluster_name
@@ -59,6 +63,21 @@ resource "helm_release" "alb_controller" {
   set {
     name  = "vpcId"
     value = var.vpc_id
+  }
+  # Tolerate the CriticalAddonsOnly taint on the platform node group so the
+  # controller can run there immediately without waiting for Karpenter to launch
+  # a new node.
+  set {
+    name  = "tolerations[0].key"
+    value = "CriticalAddonsOnly"
+  }
+  set {
+    name  = "tolerations[0].operator"
+    value = "Exists"
+  }
+  set {
+    name  = "tolerations[0].effect"
+    value = "NoSchedule"
   }
 
   depends_on = [aws_eks_pod_identity_association.alb_controller]

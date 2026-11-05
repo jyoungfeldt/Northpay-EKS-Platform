@@ -14,16 +14,22 @@ terraform {
       source  = "hashicorp/helm"
       version = "~> 2.16"
     }
+    kubectl = {
+      source  = "gavinbunney/kubectl"
+      version = "~> 1.14"
+    }
   }
 
   backend "s3" {
-    bucket         = "northpay-tfstate-595981720885"   # create this bucket first
-    key            = "eks-platform/dev/terraform.tfstate"
-    region         = "us-east-1"
-    encrypt        = true
-    dynamodb_table = "northpay-tfstate-lock"
+    bucket       = "northpay-tfstate-595981720885"
+    key          = "eks-platform/dev/terraform.tfstate"
+    region       = "us-east-1"
+    encrypt      = true
+    use_lockfile = true
   }
 }
+
+# ── AWS provider ──────────────────────────────────────────────────────────────
 
 provider "aws" {
   region = var.aws_region
@@ -35,6 +41,37 @@ provider "aws" {
       ManagedBy   = "terraform"
     }
   }
+}
+
+# ── Kubernetes / Helm / kubectl providers ─────────────────────────────────────
+# These three providers all need to connect to the EKS cluster to install
+# Helm charts and apply Kubernetes manifests. They use the cluster endpoint
+# and a short-lived token (refreshed automatically by the aws_eks_cluster_auth
+# data source) rather than a static kubeconfig file.
+
+data "aws_eks_cluster_auth" "this" {
+  name = local.cluster_name
+}
+
+provider "kubernetes" {
+  host                   = module.eks.cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+  token                  = data.aws_eks_cluster_auth.this.token
+}
+
+provider "helm" {
+  kubernetes {
+    host                   = module.eks.cluster_endpoint
+    cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+    token                  = data.aws_eks_cluster_auth.this.token
+  }
+}
+
+provider "kubectl" {
+  host                   = module.eks.cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+  token                  = data.aws_eks_cluster_auth.this.token
+  load_config_file       = false
 }
 
 # ── Data sources ──────────────────────────────────────────────────────────────
@@ -95,6 +132,7 @@ module "alb_controller" {
   aws_account_id    = data.aws_caller_identity.current.account_id
   aws_region        = var.aws_region
   environment       = var.environment
+  vpc_id            = module.vpc.vpc_id
 
   depends_on = [module.eks]
 }

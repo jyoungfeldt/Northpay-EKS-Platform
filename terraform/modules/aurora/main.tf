@@ -5,7 +5,7 @@ module "aurora" {
   name              = var.name
   engine            = "aurora-postgresql"
   engine_mode       = "provisioned"
-  engine_version    = "16.4"
+  engine_version    = "16.8"
   storage_encrypted = true
 
   vpc_id               = var.vpc_id
