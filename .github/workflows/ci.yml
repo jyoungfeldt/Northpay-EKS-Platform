@@ -13,7 +13,7 @@ on:
 
 permissions:
   id-token: write   # Required for OIDC
-  contents: read
+  contents: write   # Required for GitOps manifest commit + push
 
 env:
   AWS_REGION: ${{ vars.AWS_REGION }}
@@ -54,7 +54,8 @@ jobs:
 
     outputs:
       image_tag: ${{ steps.meta.outputs.version }}
-      image_uri: ${{ steps.build.outputs.image_uri }}
+      image_uri: ${{ steps.push_output.outputs.image_uri }}
+      registry: ${{ steps.primary.outputs.registry }}
 
     steps:
       - uses: actions/checkout@v4
@@ -78,6 +79,15 @@ jobs:
             type=sha,prefix=,format=short
             type=ref,event=branch
 
+      # Capture the single sha-based tag for use in Trivy and downstream jobs.
+      # steps.meta.outputs.tags is multi-line; we extract just the sha tag.
+      - name: Resolve primary image tag
+        id: primary
+        run: |
+          SHA_TAG=$(echo "${{ steps.meta.outputs.tags }}" | grep -v 'main' | head -n1)
+          echo "tag=${SHA_TAG}" >> $GITHUB_OUTPUT
+          echo "registry=${{ steps.login-ecr.outputs.registry }}" >> $GITHUB_OUTPUT
+
       - name: Build image
         id: build
         uses: docker/build-push-action@v6
@@ -89,9 +99,9 @@ jobs:
           load: true
 
       - name: Scan image with Trivy
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: ${{ steps.meta.outputs.tags }}
+          image-ref: ${{ steps.primary.outputs.tag }}
           format: table
           exit-code: "1"         # Fail CI on CRITICAL vulnerabilities
           severity: CRITICAL,HIGH
@@ -105,7 +115,8 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
 
       - name: Output image URI
-        run: echo "image_uri=${{ steps.meta.outputs.tags }}" >> $GITHUB_OUTPUT
+        id: push_output
+        run: echo "image_uri=${{ steps.primary.outputs.tag }}" >> $GITHUB_OUTPUT
 
   update-gitops-manifest:
     name: Update GitOps manifest
@@ -119,8 +130,9 @@ jobs:
       - name: Update image tag in Kustomize overlay
         run: |
           IMAGE_TAG=${{ needs.build-and-push.outputs.image_tag }}
+          REGISTRY=${{ needs.build-and-push.outputs.registry }}
           cd kubernetes/apps/ledger-api/overlays/dev
-          kustomize edit set image ledger-api=${{ vars.ECR_REPOSITORY }}:${IMAGE_TAG}
+          kustomize edit set image ledger-api=${REGISTRY}/${{ vars.ECR_REPOSITORY }}:${IMAGE_TAG}
 
       - name: Commit manifest update
         run: |
