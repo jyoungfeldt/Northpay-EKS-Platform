@@ -1,14 +1,14 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-bases:
-  - ../../base
 
 # CI updates this image tag automatically after a successful build
 images:
-  - name: ledger-api
-    newName: REPLACE_WITH_ECR_URI/northpay/ledger-api
-    newTag: latest
+- name: ledger-api
+  newName: 595981720885.dkr.ecr.us-east-1.amazonaws.com/northpay/ledger-api
+  newTag: main
 
 patchesStrategicMerge:
-  - replicas-patch.yaml
+- replicas-patch.yaml
+resources:
+- ../../base
